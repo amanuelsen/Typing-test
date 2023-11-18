@@ -14,78 +14,79 @@ wpn = 0
 nwpnn = 0
 
 
-def calculate_word_precision(correct_text, user_text):
+def calculate_word_precision(correct_text, correct_count):
     """
     Beräkna noggrannhet för ord i användarens inmatning jämfört med korrekt text.
     """
-    global wrong_count
+
     global total_words
 
     correct_words = correct_text.split()
-    user_words = user_text.split()
+    total_words = len(correct_words)
 
-    correct_count = 0
-    wrong_count = 0
-
-    for correct_word, user_word in zip(correct_words, user_words):
-        if correct_word == user_word:
-            correct_count += 1
-        else:
-            wrong_count += 1
-
-    total_words = max(len(correct_words), len(user_words))
-    word_precision = correct_count / total_words
+    word_precision = correct_count / len(correct_words)
 
     return word_precision
 
 
-def calculate_letter_precision(correct_text, user_text):
+def calculate_letter_precision(correct_text, wrong_count1, correct_count1):
     """
     Beräkna noggrannhet för enskilda bokstäver i användarens inmatning jämfört med korrekt text.
     """
 
-    # tar bort alla tecken som inte är alfanumeriska
     correct_letters = list(correct_text.strip())
-    user_letters = list(user_text.strip())
+    filtered_list = [
+        char for char in correct_letters if char not in (' ', '\n')]
 
-    correct_count = 0
-
-    for correct_letter, user_letter in zip(correct_letters, user_letters):
-        if correct_letter == user_letter:
-            correct_count += 1
-
-    total_letters = max(len(correct_letters), len(user_letters))
-    letter_precision = correct_count / total_letters
+    total_letters = len(filtered_list)
+    letter_precision = (correct_count1-wrong_count1) / total_letters
 
     return letter_precision
 
 
 def fel_tecken(correct_text, user_text):
     """
-    Identifiera och räkna felaktiga tecken i användarens inmatning jämfört med korrekt text.
+    Identifiera och räkna felaktiga bokstäver i användarens inmatning jämfört med korrekt text (case-sensitive).
     """
-    fel_letters = {}
-    correct_text = ''.join(filter(str.isalnum, correct_text))
-    user_text = ''.join(filter(str.isalnum, user_text))
+    fel_letters = {}  # Initialize an empty dictionary to store incorrect characters and their counts.
 
-    if not user_text:
-        letter_counts = {}
-        for char in correct_text:
-            if char in letter_counts:
-                letter_counts[char] += 1
-            else:
-                letter_counts[char] = 1
+    correct_words = correct_text.split()
+    user_words = user_text.split()
 
-        return [(char, count) for char, count in letter_counts.items()]
+    for correct_word, user_word in zip(correct_words, user_words):
+        for correct_char, user_char in zip(correct_word, user_word):
+            if correct_char != user_char:
+                if correct_char.isalpha():
+                    if correct_char not in fel_letters:
+                        fel_letters[correct_char] = 1
+                    else:
+                        fel_letters[correct_char] += 1
 
-    for correct_char in correct_text:
-        if correct_char not in user_text:
-            if correct_char not in fel_letters:
-                fel_letters[correct_char] = 1
-            else:
-                fel_letters[correct_char] += 1
+        # Handle missing characters in user_word
+        if len(user_word) < len(correct_word):
+            missing_chars = correct_word[len(user_word):]
+            for char in missing_chars:
+                if char.isalpha():
+                    if char not in fel_letters:
+                        fel_letters[char] = 1
+                    else:
+                        fel_letters[char] += 1
 
-    return [(char, count) for char, count in fel_letters.items()]
+    # Handle missing words in user_text
+    if len(user_words) < len(correct_words):
+        missing_words = correct_words[len(user_words):]
+        for word in missing_words:
+            for char in word:
+                if char.isalpha():
+                    if char not in fel_letters:
+                        fel_letters[char] = 1
+                    else:
+                        fel_letters[char] += 1
+
+    result = tuple((char, count)
+                   for char, count in fel_letters.items())
+
+    return result
 
 
 def round_elapsed_time(elapsed_time):
@@ -124,22 +125,73 @@ def calculate_nwpnn():
 
 def start_typing_test(file_name):
     """
-    Starta en skrivtest, mät tid, beräkna noggrannhet och spara resultat.
+    Den gör alla funcktioner för att få redan på reultaten
     """
+
     with open(file_name, "r") as file:
         text_lines = file.readlines()
-
-    correct_text = "".join(text_lines)
+    minus1 = 0
+    minus = 0
+    correct_text = " ".join(text_lines)
     user_text = ""
-
     print("Skriv av följande text:")
 
     start_time = time.time()
-
+    # Initialize an empty dictionary to store incorrect characters and their counts.
+    fel_error = {}
+    correct_count = 0
+    global wrong_count
+    wrong_count = 0
+    wrong_count1 = 0
+    correct_count1 = 0
+    last_index = 0
     for line in text_lines:
         print(line.strip())
         user_input = input()
-        user_text += user_input + " "
+        user_text += user_input+" "
+        fel_error_line = fel_tecken(line.strip(), user_input)
+        correct_words = line.split()
+        user_words = user_input.split()
+        user_word_letters = []
+        correct_word_letters = []
+
+        for correct_word, user_word in zip(correct_words, user_words):
+            if correct_word == user_word:
+                correct_count += 1
+            else:
+                wrong_count += 1
+        if len(correct_words) > len(user_words):
+            minus = len(correct_words)-len(user_words)
+            wrong_count += minus
+        elif len(user_words) > len(correct_words):
+            minus = len(user_words)-len(correct_words)
+            correct_count -= minus
+
+        for correct_word, user_word in zip(correct_words, user_words):
+            correct_word_letters = list(correct_word.strip())
+            user_word_letters = list(user_word.strip())
+
+            for correct_char, user_char in zip(correct_word, user_word):
+                if correct_char == user_char:
+                    correct_count1 += 1
+
+            if len(user_word_letters) > len(correct_word_letters):
+                minus1 = len(user_word_letters)-len(correct_word_letters)
+                wrong_count1 += minus1
+        if len(user_words) > len(correct_words):
+            last_index = len(correct_words) - 1
+            extra_words = user_words[last_index + 1:]
+            for word in extra_words:
+                for char in word:
+                    wrong_count1 += 1
+
+        # Den kominerar the errors for each line
+
+        for char, count in fel_error_line:
+            if char in fel_error:
+                fel_error[char] += count
+            else:
+                fel_error[char] = count
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -147,9 +199,10 @@ def start_typing_test(file_name):
     global Elapsed_minutes
     Elapsed_minutes = round_elapsed_time(elapsed_time)
 
-    word_precision = calculate_word_precision(correct_text, user_text)
-    tecken_precision = calculate_letter_precision(correct_text, user_text)
-    fel_error = fel_tecken(correct_text, user_text)
+    word_precision = calculate_word_precision(
+        correct_text, correct_count)
+    tecken_precision = calculate_letter_precision(
+        correct_text, wrong_count1, correct_count1)
 
     input("Tryck Enter för att se resultat och skriva ditt namn...")
     print(f"Tid för test: {Elapsed_minutes} minuter")
@@ -157,7 +210,10 @@ def start_typing_test(file_name):
     print(f"Nwpn : {calculate_nwpnn()} ")
     print(f"Din ordprecision : {word_precision:.2%}")
     print(f"Din tecken precision: {tecken_precision:.2%}")
-    print(f"Fel: {fel_error}")
+
+    sorted_fel_error = sorted(
+        fel_error.items(), key=lambda x: x[1], reverse=True)
+    print("Fel:", sorted_fel_error)
 
     user_name = input("Ange ditt namn: ")
 
@@ -165,7 +221,8 @@ def start_typing_test(file_name):
         score_file.write(f"{word_precision * 100:.2f}|")
         score_file.write(f"{Elapsed_minutes}|")
         score_file.write(f"{user_name}|")
-        score_file.write(f"{fel_error}|")
+        # Store errors as a list
+        score_file.write(f"{sorted_fel_error}|")
         score_file.write(f"{calculate_nwpnn()}|")
         score_file.write(f"{calculate_wpn()}|")
         if calculate_nwpnn() <= 10:
